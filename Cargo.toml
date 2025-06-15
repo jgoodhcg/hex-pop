@@ -1,0 +1,17 @@
+[package]
+name = "hex-pop"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bevy = { version = "0.16.1", default-features = false, features = [
+    "bevy_winit",
+    "bevy_render",
+    "bevy_core_pipeline",
+    "bevy_sprite",
+    "bevy_text",
+    "bevy_ui",
+    "bevy_asset",
+    "webgl2",
+] }
+
