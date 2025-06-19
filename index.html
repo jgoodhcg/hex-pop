@@ -9,13 +9,17 @@
             padding: 0;
             height: 100%;
             overflow: hidden;
+            touch-action: none; /* Prevent scrolling on mobile */
         }
         canvas {
             display: block;
             width: 100%;
             height: 100%;
+            max-width: 100vw;
+            max-height: 100vh;
         }
     </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 </head>
 <body>
     <canvas id="bevy"></canvas>
