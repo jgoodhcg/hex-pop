@@ -17,4 +17,5 @@ bevy = { version = "0.16.1", default-features = false, features = [
     "default_font",  # Add default font support
 ] }
 web-sys = { version = "0.3", features = ["console"] }
+rand = "0.8"
 

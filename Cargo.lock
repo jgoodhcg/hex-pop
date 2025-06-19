@@ -1985,6 +1985,7 @@ name = "hex-pop"
 version = "0.1.0"
 dependencies = [
  "bevy",
+ "rand",
  "web-sys",
 ]
 
