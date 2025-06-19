@@ -119,45 +119,6 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     // Spawn camera
     commands.spawn(Camera2d);
 
-    // Load hexagon image
-    let hex_image = asset_server.load("hexagon.png");
-
-    // Settings
-    let hex_size = 30.0;
-    let grid_radius = 2; // Creates a small hexagon of hexagons
-
-    // Create hexagon pattern
-    for q in -grid_radius..=grid_radius {
-        let r1 = (-grid_radius).max(-q - grid_radius);
-        let r2 = grid_radius.min(-q + grid_radius);
-
-        for r in r1..=r2 {
-            let coord = HexCoord::new(q, r);
-            let world_pos = coord.to_world_pos(hex_size);
-
-            commands
-                .spawn((
-                    Sprite {
-                        image: hex_image.clone(),
-                        custom_size: Some(Vec2::new(hex_size * 2.0, hex_size * 2.0)),
-                        ..default()
-                    },
-                    Transform::from_xyz(world_pos.x, world_pos.y, 0.0),
-                    coord.clone(),
-                ))
-                .with_children(|parent| {
-                    parent.spawn((
-                        Text2d::new(format!("{},{}", coord.q, coord.r)),
-                        TextFont {
-                            font_size: 18.0,
-                            ..default()
-                        },
-                        TextColor(Color::WHITE),
-                        Transform::from_xyz(0.0, 0.0, 1.0),
-                    ));
-                });
-        }
-    }
 }
 
 // System to handle falling row physics
@@ -196,9 +157,19 @@ fn falling_row_system(
                         ..default()
                     },
                     Transform::from_xyz(world_pos.x, world_pos.y, 0.0),
-                    coord,
+                    coord.clone(),
                     StackedHex { color },
-                ));
+                )).with_children(|parent| {
+                    parent.spawn((
+                        Text2d::new(format!("{},{}", coord.q, coord.r)),
+                        TextFont {
+                            font_size: 12.0,
+                            ..default()
+                        },
+                        TextColor(Color::WHITE),
+                        Transform::from_xyz(0.0, 0.0, 1.0),
+                    ));
+                });
             }
 
             // Remove falling row entity
@@ -278,8 +249,18 @@ fn spawn_falling_row(
                         ..default()
                     },
                     Transform::from_xyz(world_pos.x, 0.0, 0.0),
-                    coord,
-                ));
+                    coord.clone(),
+                )).with_children(|child| {
+                    child.spawn((
+                        Text2d::new(format!("{},{}", coord.q, coord.r)),
+                        TextFont {
+                            font_size: 12.0,
+                            ..default()
+                        },
+                        TextColor(Color::WHITE),
+                        Transform::from_xyz(0.0, 0.0, 1.0),
+                    ));
+                });
             }
         });
 }
