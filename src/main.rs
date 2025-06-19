@@ -15,7 +15,7 @@ fn main() {
         .add_plugins(LogDiagnosticsPlugin::default())
         .init_resource::<DebugState>()
         .add_systems(Startup, setup)
-        .add_systems(Update, (check_asset_loading, debug_display))
+        .add_systems(Update, check_asset_loading)
         .run();
 }
 
@@ -42,6 +42,7 @@ impl HexCoord {
 #[derive(Component)]
 struct Hexagon {
     coord: HexCoord,
+    in_play: bool,  // true = active game piece, false = border/inactive
 }
 
 #[derive(Resource)]
@@ -55,17 +56,32 @@ struct DebugState {
     last_logged_state: Option<String>,
 }
 
+// Game board configuration for mobile
+const GRID_WIDTH: i32 = 7;   // Hexes wide (good for mobile portrait)
+const GRID_HEIGHT: i32 = 12; // Hexes tall (fits mobile screens)
+const MOBILE_ASPECT_RATIO: f32 = 9.0 / 16.0; // Mobile portrait ratio
+
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn(Camera2d);
-
-    let hex_size = 50.0;
     
     // Load hexagon texture
     let hex_texture = asset_server.load("hexagon.png");
     commands.insert_resource(HexTexture(hex_texture.clone()));
     
-    // Create a hex grid
-    let grid_radius = 3; // Creates roughly a 7x7 hex grid
+    // Define rectangular play area boundaries (in world coordinates)
+    let play_area_width = 300.0;  // Straight vertical edges
+    let play_area_height = 500.0; // Straight horizontal edges
+    
+    // Calculate hex size to fit nicely in play area
+    let hex_size = 25.0; // Fixed size for consistent gameplay
+    
+    web_sys::console::log_1(&format!("Rectangular play area: {}x{} pixels", play_area_width, play_area_height).into());
+    
+    // Generate a larger hex grid, then determine which hexes are in/out of play
+    let grid_radius = 10; // Generate plenty of hexes to fill and overflow the rectangle
+    
+    let mut in_play_count = 0;
+    let mut border_count = 0;
     
     for q in -grid_radius..=grid_radius {
         let r1 = (-grid_radius).max(-q - grid_radius);
@@ -75,28 +91,63 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             let hex_coord = HexCoord::new(q, r);
             let world_pos = hex_coord.to_world_pos(hex_size);
             
-            commands.spawn((
-                Sprite {
-                    image: hex_texture.clone(),
-                    custom_size: Some(Vec2::new(hex_size * 1.8, hex_size * 1.8)),
-                    ..default()
-                },
-                Transform::from_xyz(world_pos.x, world_pos.y, 0.0),
-                Hexagon { coord: hex_coord },
-            ));
+            // Only spawn hexes that are somewhat near our play area
+            if world_pos.x.abs() <= play_area_width + hex_size && 
+               world_pos.y.abs() <= play_area_height + hex_size {
+                
+                // Determine if this hex is inside the rectangular play area
+                let in_play = world_pos.x.abs() <= play_area_width / 2.0 && 
+                              world_pos.y.abs() <= play_area_height / 2.0;
+                
+                if in_play {
+                    in_play_count += 1;
+                } else {
+                    border_count += 1;
+                }
+                
+                // Choose color: normal for in-play, gray for border
+                let sprite_color = if in_play {
+                    Color::WHITE  // Normal hexagon colors
+                } else {
+                    Color::srgb(0.4, 0.4, 0.4)  // Grayed out border
+                };
+                
+                commands.spawn((
+                    Sprite {
+                        image: hex_texture.clone(),
+                        color: sprite_color,
+                        custom_size: Some(Vec2::new(hex_size * 1.8, hex_size * 1.8)),
+                        ..default()
+                    },
+                    Transform::from_xyz(world_pos.x, world_pos.y, 0.0),
+                    Hexagon { 
+                        coord: hex_coord,
+                        in_play,
+                    },
+                ));
+            }
         }
     }
     
-    // Debug text
+    // Draw play area boundary rectangle for visualization
     commands.spawn((
-        Text::new("Hex Grid Loaded"),
-        Node {
-            position_type: PositionType::Absolute,
-            top: Val::Px(10.0),
-            left: Val::Px(10.0),
+        Sprite {
+            color: Color::srgba(1.0, 1.0, 0.0, 0.3), // Semi-transparent yellow
+            custom_size: Some(Vec2::new(play_area_width, play_area_height)),
             ..default()
         },
-        DebugText,
+        Transform::from_xyz(0.0, 0.0, -1.0), // Behind hexagons
+    ));
+    
+    // Super basic text test
+    commands.spawn((
+        Text::from("HELLO WORLD"),
+        Node {
+            position_type: PositionType::Absolute,
+            top: Val::Px(50.0),
+            left: Val::Px(50.0),
+            ..default()
+        },
     ));
 }
 
@@ -140,26 +191,25 @@ fn debug_display(
     mut text_query: Query<&mut Text, With<DebugText>>,
 ) {
     if let Ok(mut text) = text_query.get_single_mut() {
-        if let Some(hex_texture_res) = hex_texture {
+        if let Some(hex_texture_res) = hex_texture.as_ref() {
             let load_state = asset_server.get_load_state(&hex_texture_res.0);
             
             let status = match load_state {
-                Some(bevy::asset::LoadState::NotLoaded) => "PNG: Not loaded",
-                Some(bevy::asset::LoadState::Loading) => "PNG: Loading...",
+                Some(bevy::asset::LoadState::NotLoaded) => "Loading...",
+                Some(bevy::asset::LoadState::Loading) => "Loading...",
                 Some(bevy::asset::LoadState::Loaded) => {
                     if images.get(&hex_texture_res.0).is_some() {
-                        "PNG: Loaded! Grid Ready"
+                        "Ready!"
                     } else {
-                        "PNG: Loaded but not accessible"
+                        "Error"
                     }
                 },
-                Some(bevy::asset::LoadState::Failed(_)) => "PNG: FAILED TO LOAD",
-                None => "PNG: Unknown state",
+                Some(bevy::asset::LoadState::Failed(_)) => "Failed",
+                None => "Unknown",
             };
             
-            **text = status.to_string();
-        } else {
-            **text = "PNG: No texture resource".to_string();
+            // Update just the status part, keep the counts static
+            **text = format!("Board: 300x500\nStatus: {}", status);
         }
     }
 }
