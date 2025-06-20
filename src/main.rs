@@ -181,9 +181,9 @@ fn board_span(size: f32, cols: i32, rows: i32) -> (f32, f32) {
     let w = cols as f32;
     let h = rows as f32;
 
-    let span_x = w * size * 3_f32.sqrt();
+    let span_x = w * size * 3_f32.sqrt() + ((2_f32 * inner_radius()) / 2_f32);
 
-    let span_y = h * size * (3_f32 / 2_f32);
+    let span_y = h * size * (3_f32 / 2_f32) + (0.25_f32 * ((3_f32 / 2_f32) * size));
 
     (span_x, span_y)
 }
