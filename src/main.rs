@@ -36,9 +36,9 @@ fn main() {
 // ===== CONSTANTS =====
 
 // Grid dimensions for mobile play
-const GRID_WIDTH: i32 = 10;  // 10 hexes wide
-const GRID_HEIGHT: i32 = 16; // 16 hexes tall  
-const HEX_SIZE: f32 = 32.0;  // radius, not width
+const GRID_WIDTH: i32 = 6;
+const GRID_HEIGHT: i32 = 12;
+const HEX_SIZE: f32 = 32.0; // radius, not width
 
 // ===== DATA STRUCTURES =====
 
@@ -169,18 +169,37 @@ impl HexType {
 
 // ===== HELPER FUNCTIONS =====
 
+fn inner_radius() -> f32 {
+    return HEX_SIZE * (3_f32.sqrt() / 2_f32);
+}
+
+/// Point-top axial grid bounding box (all hexes fully inside)
+///
+/// `size` = radius (centre → any corner)
+/// returns (span_x, span_y)
+fn board_span(size: f32, cols: i32, rows: i32) -> (f32, f32) {
+    let w = cols as f32;
+    let h = rows as f32;
+
+    // horizontal: √3·size per col  + ½√3·size extra for each row  + ½√3·size margin
+    let span_x = (w + 1_f32) * size * 3_f32.sqrt();
+
+    // vertical: 1.5·size per row + size margin top + size margin bottom
+    let span_y = size * (3_f32 / 2_f32) * (h + 1_f32);
+
+    (span_x, span_y)
+}
+
 fn axial_to_world(q: i32, r: i32) -> Vec2 {
-    // overall pixel span of the grid excluding half-hex overhang on each edge
-    let span_x = HEX_SIZE * 3.0_f32.sqrt() * (GRID_WIDTH as f32 - 1.0) + HEX_SIZE * 2.0;
-    let span_y = HEX_SIZE * 1.5 * (GRID_HEIGHT as f32 - 1.0) + HEX_SIZE * 2.0;
-    
+    let (span_x, span_y) = board_span(HEX_SIZE, GRID_WIDTH, GRID_HEIGHT);
+
     // top-left corner of the usable grid, in world coordinates
     let origin = Vec2::new(-span_x / 2.0 + HEX_SIZE, span_y / 2.0 - HEX_SIZE);
-    
+
     // pointy-top axial: x = √3·size·(q + r/2), y = 1.5·size·r
     let x = HEX_SIZE * 3.0_f32.sqrt() * (q as f32 + r as f32 * 0.5);
     let y = HEX_SIZE * 1.5 * r as f32;
-    
+
     // y-up in Bevy → move down by -y
     origin + Vec2::new(x, -y)
 }
@@ -197,9 +216,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         },
     ));
 
-    // overall pixel span of the grid excluding half-hex overhang on each edge
-    let span_x = HEX_SIZE * 3.0_f32.sqrt() * (GRID_WIDTH as f32 - 1.0) + HEX_SIZE * 2.0;
-    let span_y = HEX_SIZE * 1.5 * (GRID_HEIGHT as f32 - 1.0) + HEX_SIZE * 2.0;
+    let (span_x, span_y) = board_span(HEX_SIZE, GRID_WIDTH, GRID_HEIGHT);
 
     // draw a black background a bit larger than the grid
     commands.spawn((
@@ -228,7 +245,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
             // Spawn coordinate text
             commands.spawn((
-                Text2d::new(format!("{},{}", q, r)),
+                Text2d::new(format!("{},{}\n{},{}", q, r, pos.x.trunc(), pos.y.trunc())),
                 TextFont {
                     font_size: 12.0,
                     ..default()
