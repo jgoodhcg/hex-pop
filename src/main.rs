@@ -181,11 +181,9 @@ fn board_span(size: f32, cols: i32, rows: i32) -> (f32, f32) {
     let w = cols as f32;
     let h = rows as f32;
 
-    // horizontal: √3·size per col  + ½√3·size extra for each row  + ½√3·size margin
-    let span_x = (w + 1_f32) * size * 3_f32.sqrt();
+    let span_x = w * size * 3_f32.sqrt();
 
-    // vertical: 1.5·size per row + size margin top + size margin bottom
-    let span_y = size * (3_f32 / 2_f32) * (h + 1_f32);
+    let span_y = h * size * (3_f32 / 2_f32);
 
     (span_x, span_y)
 }
@@ -193,15 +191,23 @@ fn board_span(size: f32, cols: i32, rows: i32) -> (f32, f32) {
 fn axial_to_world(q: i32, r: i32) -> Vec2 {
     let (span_x, span_y) = board_span(HEX_SIZE, GRID_WIDTH, GRID_HEIGHT);
 
-    // top-left corner of the usable grid, in world coordinates
-    let origin = Vec2::new(-span_x / 2.0 + HEX_SIZE, span_y / 2.0 - HEX_SIZE);
+    // Top-left corner of the board area
+    let board_top_left = Vec2::new(-span_x / 2.0, span_y / 2.0);
 
-    // pointy-top axial: x = √3·size·(q + r/2), y = 1.5·size·r
-    let x = HEX_SIZE * 3.0_f32.sqrt() * (q as f32 + r as f32 * 0.5);
-    let y = HEX_SIZE * 1.5 * r as f32;
+    // Hex dimensions
+    let w = HEX_SIZE * 3.0_f32.sqrt(); // full width
+    let h = HEX_SIZE * 2.0; // full height
 
-    // y-up in Bevy → move down by -y
-    origin + Vec2::new(x, -y)
+    // Position relative to top-left corner of board:
+    // (0,0) at: 1w right, 1/2h down (even row)
+    // (0,1) at: 1/2w right, 1 1/4h down (odd row - shifted left by w/2)
+    // Pattern: odd rows shift left by w/2, even rows don't shift
+    let x_shift = if r % 2 == 1 { w / 2.0 } else { 0.0 };
+    let x_offset = q as f32 * w - x_shift + w;
+    let y_offset = r as f32 * (3.0 * h / 4.0) + h / 2.0;
+
+    // Convert to world coordinates (Bevy y-up, so down is negative)
+    board_top_left + Vec2::new(x_offset, -y_offset)
 }
 
 // ===== SYSTEMS =====
@@ -222,7 +228,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
         Sprite {
             color: Color::BLACK,
-            custom_size: Some(Vec2::new(span_x + 20.0, span_y + 20.0)),
+            custom_size: Some(Vec2::new(span_x, span_y)),
             ..default()
         },
         Transform::from_xyz(0.0, 0.0, -1.0), // behind tiles
