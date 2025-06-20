@@ -223,12 +223,15 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     ));
 
     let (span_x, span_y) = board_span(HEX_SIZE, GRID_WIDTH, GRID_HEIGHT);
-
-    // draw a black background a bit larger than the grid
+    
+    // Add padding around the board
+    let padding = 20.0; // Adjust this value for more/less padding
+    
+    // draw a black background with padding around the grid
     commands.spawn((
         Sprite {
             color: Color::BLACK,
-            custom_size: Some(Vec2::new(span_x, span_y)),
+            custom_size: Some(Vec2::new(span_x + 2.0 * padding, span_y + 2.0 * padding)),
             ..default()
         },
         Transform::from_xyz(0.0, 0.0, -1.0), // behind tiles
