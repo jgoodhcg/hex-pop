@@ -1,6 +1,6 @@
 use bevy::prelude::*;
-use std::collections::HashMap;
 use rand::Rng;
+use std::collections::HashMap;
 
 fn main() {
     App::new()
@@ -18,7 +18,7 @@ fn main() {
         .add_systems(
             Update,
             (
-                spawn_falling_groups,
+                // spawn_falling_groups, // Temporarily disabled for grid setup
                 handle_input,
                 falling_group_physics,
                 check_group_landing,
@@ -33,6 +33,13 @@ fn main() {
         .run();
 }
 
+// ===== CONSTANTS =====
+
+// Grid dimensions for mobile play
+const GRID_WIDTH: i32 = 10;  // 10 hexes wide
+const GRID_HEIGHT: i32 = 16; // 16 hexes tall  
+const HEX_SIZE: f32 = 32.0;  // radius, not width
+
 // ===== DATA STRUCTURES =====
 
 // Hex coordinate using axial coordinates
@@ -45,17 +52,17 @@ struct HexCoord {
 // Windows 95 hex types based on asset filenames
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum HexType {
-    Blank,   // hex-w95-blank.png
-    Cli,     // hex-w95-cli.png  
-    Corner,  // hex-w95-corner.png
+    Blank,  // hex-w95-blank.png
+    Cli,    // hex-w95-cli.png
+    Corner, // hex-w95-corner.png
 }
 
 // Falling group of 3 hexes
 #[derive(Component)]
 struct FallingGroup {
     hexes: [HexType; 3], // Exactly 3 hexes
-    center_pos: Vec2,     // World position of group center
-    rotation: usize,      // 0, 1, or 2 (which hex is "top")
+    center_pos: Vec2,    // World position of group center
+    rotation: usize,     // 0, 1, or 2 (which hex is "top")
     fall_speed: f32,
     horizontal_speed: f32, // For left/right movement
 }
@@ -93,10 +100,8 @@ impl HexCoord {
         Self { q, r }
     }
 
-    fn to_world_pos(&self, hex_size: f32) -> Vec2 {
-        let x = hex_size * (3.0_f32.sqrt() * self.q as f32 + 3.0_f32.sqrt() / 2.0 * self.r as f32);
-        let y = hex_size * (1.5 * self.r as f32);
-        Vec2::new(x, y)
+    fn to_world_pos(&self) -> Vec2 {
+        axial_to_world(self.q, self.r)
     }
 
     fn neighbors(&self) -> Vec<HexCoord> {
@@ -111,8 +116,8 @@ impl HexCoord {
     }
 
     fn is_valid(&self) -> bool {
-        // TODO: Define grid bounds
-        true
+        // Check if coordinates are within grid bounds
+        self.q >= 0 && self.q < GRID_WIDTH && self.r >= 0 && self.r < GRID_HEIGHT
     }
 
     fn lowest_supported_position(&self, stack: &HashMap<HexCoord, HexType>) -> HexCoord {
@@ -150,7 +155,7 @@ impl HexType {
             HexType::Corner => "hex-w95-corner.png",
         }
     }
-    
+
     fn random() -> Self {
         use rand::Rng;
         let mut rng = rand::thread_rng();
@@ -162,10 +167,28 @@ impl HexType {
     }
 }
 
+// ===== HELPER FUNCTIONS =====
+
+fn axial_to_world(q: i32, r: i32) -> Vec2 {
+    // overall pixel span of the grid excluding half-hex overhang on each edge
+    let span_x = HEX_SIZE * 3.0_f32.sqrt() * (GRID_WIDTH as f32 - 1.0) + HEX_SIZE * 2.0;
+    let span_y = HEX_SIZE * 1.5 * (GRID_HEIGHT as f32 - 1.0) + HEX_SIZE * 2.0;
+    
+    // top-left corner of the usable grid, in world coordinates
+    let origin = Vec2::new(-span_x / 2.0 + HEX_SIZE, span_y / 2.0 - HEX_SIZE);
+    
+    // pointy-top axial: x = √3·size·(q + r/2), y = 1.5·size·r
+    let x = HEX_SIZE * 3.0_f32.sqrt() * (q as f32 + r as f32 * 0.5);
+    let y = HEX_SIZE * 1.5 * r as f32;
+    
+    // y-up in Bevy → move down by -y
+    origin + Vec2::new(x, -y)
+}
+
 // ===== SYSTEMS =====
 
-fn setup(mut commands: Commands, _asset_server: Res<AssetServer>) {
-    // Spawn camera with dark background
+fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+    // Spawn camera with Windows 95 gray background
     commands.spawn((
         Camera2d,
         Camera {
@@ -173,6 +196,48 @@ fn setup(mut commands: Commands, _asset_server: Res<AssetServer>) {
             ..default()
         },
     ));
+
+    // overall pixel span of the grid excluding half-hex overhang on each edge
+    let span_x = HEX_SIZE * 3.0_f32.sqrt() * (GRID_WIDTH as f32 - 1.0) + HEX_SIZE * 2.0;
+    let span_y = HEX_SIZE * 1.5 * (GRID_HEIGHT as f32 - 1.0) + HEX_SIZE * 2.0;
+
+    // draw a black background a bit larger than the grid
+    commands.spawn((
+        Sprite {
+            color: Color::BLACK,
+            custom_size: Some(Vec2::new(span_x + 20.0, span_y + 20.0)),
+            ..default()
+        },
+        Transform::from_xyz(0.0, 0.0, -1.0), // behind tiles
+    ));
+
+    // Spawn grid of hex icons with coordinate text
+    for r in 0..GRID_HEIGHT {
+        for q in 0..GRID_WIDTH {
+            let pos = axial_to_world(q, r);
+
+            // Spawn hex sprite
+            commands.spawn((
+                Sprite {
+                    image: asset_server.load("hex-w95-blank.png"),
+                    custom_size: Some(Vec2::new(64.0, 64.0)), // Half size for grid
+                    ..default()
+                },
+                Transform::from_xyz(pos.x, pos.y, 0.0),
+            ));
+
+            // Spawn coordinate text
+            commands.spawn((
+                Text2d::new(format!("{},{}", q, r)),
+                TextFont {
+                    font_size: 12.0,
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+                Transform::from_xyz(pos.x, pos.y, 1.0),
+            ));
+        }
+    }
 }
 
 fn spawn_falling_groups(
@@ -185,7 +250,7 @@ fn spawn_falling_groups(
     // Only spawn if no falling group exists and timer is up
     if falling_groups.is_empty() {
         game_state.next_group_timer -= time.delta_secs();
-        
+
         if game_state.next_group_timer <= 0.0 {
             spawn_hex_group(&mut commands, &asset_server);
             game_state.next_group_timer = 3.0; // Reset timer
@@ -251,48 +316,46 @@ fn check_game_over(game_state: Res<GameState>) {
 
 fn spawn_hex_group(commands: &mut Commands, asset_server: &Res<AssetServer>) {
     // Create 3 random Windows 95 hex types
-    let hexes = [
-        HexType::random(),
-        HexType::random(),
-        HexType::random(),
-    ];
-    
+    let hexes = [HexType::random(), HexType::random(), HexType::random()];
+
     // Spawn the falling group entity
-    commands.spawn((
-        FallingGroup {
-            hexes,
-            center_pos: Vec2::new(0.0, 300.0), // Start at top center
-            rotation: 0,
-            fall_speed: 100.0,
-            horizontal_speed: 0.0,
-        },
-        Transform::from_xyz(0.0, 300.0, 0.0),
-    )).with_children(|parent| {
-        // Spawn 3 hex sprites as children
-        let hex_radius = 64.0; // Actual hexagon radius in your 128x128 images
-        let gap = 4.0; // Small breathing room between hexagons
-        let hex_width = hex_radius * 3.0_f32.sqrt() + gap; // Width with gap
-        let hex_height = hex_radius * 1.5 + gap; // Vertical spacing with gap
-        
-        let positions = [
-            Vec2::new(0.0, hex_height/2.0),                      // Top
-            Vec2::new(-hex_width/2.0, -hex_height/2.0),         // Bottom left  
-            Vec2::new(hex_width/2.0, -hex_height/2.0),          // Bottom right
-        ];
-        
-        for (i, &hex_type) in hexes.iter().enumerate() {
-            // Spawn hex using Windows 95 image files
-            parent.spawn((
-                Sprite {
-                    image: asset_server.load(hex_type.to_image_path()),
-                    color: Color::WHITE, // Use white to show original image colors
-                    custom_size: Some(Vec2::new(128.0, 128.0)), // Keep original image size
-                    ..default()
-                },
-                Transform::from_xyz(positions[i].x, positions[i].y, 0.0),
-            ));
-        }
-    });
+    commands
+        .spawn((
+            FallingGroup {
+                hexes,
+                center_pos: Vec2::new(0.0, 300.0), // Start at top center
+                rotation: 0,
+                fall_speed: 100.0,
+                horizontal_speed: 0.0,
+            },
+            Transform::from_xyz(0.0, 300.0, 0.0),
+        ))
+        .with_children(|parent| {
+            // Spawn 3 hex sprites as children
+            let hex_radius = 64.0; // Actual hexagon radius in your 128x128 images
+            let gap = 4.0; // Small breathing room between hexagons
+            let hex_width = hex_radius * 3.0_f32.sqrt() + gap; // Width with gap
+            let hex_height = hex_radius * 1.5 + gap; // Vertical spacing with gap
+
+            let positions = [
+                Vec2::new(0.0, hex_height / 2.0),               // Top
+                Vec2::new(-hex_width / 2.0, -hex_height / 2.0), // Bottom left
+                Vec2::new(hex_width / 2.0, -hex_height / 2.0),  // Bottom right
+            ];
+
+            for (i, &hex_type) in hexes.iter().enumerate() {
+                // Spawn hex using Windows 95 image files
+                parent.spawn((
+                    Sprite {
+                        image: asset_server.load(hex_type.to_image_path()),
+                        color: Color::WHITE, // Use white to show original image colors
+                        custom_size: Some(Vec2::new(128.0, 128.0)), // Keep original image size
+                        ..default()
+                    },
+                    Transform::from_xyz(positions[i].x, positions[i].y, 0.0),
+                ));
+            }
+        });
 }
 
 fn find_connected_group(
@@ -313,4 +376,3 @@ fn get_lowest_empty_position(coord: &HexCoord, stack: &HashMap<HexCoord, HexType
     // TODO: Where should a hex fall to?
     *coord
 }
-
