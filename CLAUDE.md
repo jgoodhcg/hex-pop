@@ -4,78 +4,90 @@
 **Hex Pop** is a hexagon-based puzzle game built with Bevy v0.16.1, targeting web browsers (WebAssembly). It combines Tetris-like falling mechanics with match-3 puzzle elements using a hexagonal grid system.
 
 ## Game Mechanics (Current Design)
-- **Falling Groups**: 3 colored hexagons fall from the top in a triangular formation
+- **Falling Triangles**: 3-hex triangular groups fall from the top with smooth vertical movement
 - **Player Controls**: 
-  - Rotate the 3 hexes around each other (A/D keys)
-  - Move entire group left/right (arrow keys)
-  - Slam down for instant drop (S key)
-- **Physics**: Individual hexes land and stack with simple gravity
-- **Matching**: Groups of 3+ adjacent same-colored hexes pop
-- **Chain Reactions**: After clearing, remaining hexes fall to fill gaps
-- **Game Over**: When stack reaches the top
+  - Left/Right arrows: Move triangle horizontally (snaps to grid columns)
+  - Down arrow: Fast drop (increased fall speed)
+  - Space bar: Cycle hex positions in triangle (rotation without sprite rotation)
+- **Collision System**: Entire triangle stops falling when any hex touches the grid or landed pieces
+- **Hex Physics**: After landing, individual hexes fall following point-top hex rules:
+  - Fall until supported by grid bottom OR two adjacent pieces below
+  - If only one piece below, slide to unsupported side and continue falling
+- **Settling Animation**: 200-300ms smooth movement to final resting positions
+- **Matching**: 3+ hexes of same type in any direction clear (lines, not just clusters)
+- **Chain Reactions**: After clearing, remaining hexes fall and settle using hex physics
+- **Game Over**: When stack reaches the spawn area
 
 ## Current Progress
 
 ### ✅ Completed
 - Basic Bevy project setup with web deployment (WASM)
 - Hex coordinate system using axial coordinates (q, r)
-- Complete game architecture outlined in code
-- Basic spawning system: 3-hex groups appear every 3 seconds
-- Dark neon theme with color palette:
-  - Background: Very dark blue (#050514)
-  - Hex bodies: Dark green (all hexes)  
-  - Neon borders: Bright colors (#4deeea, #74ee15, #ffe700, #f000ff, #001eff)
-- Two-layer hex rendering (dark body + bright neon border)
+- Windows 95 theme with gray background and themed hex assets
+- Grid system: 6×12 hex tessellation with proper spacing and centering
+- Mobile-optimized sizing with grid positioned for falling piece space
+- Three Windows 95 hex types: Blank, CLI, Corner (based on asset filenames)
+- Perfect grid-to-rectangle fitting with padding
 
 ### 🚧 Currently Working On
-- **spawn_falling_groups**: Implemented (timer-based spawning)
-- **spawn_hex_group**: Implemented (helper function for spawning logic)
-- All other systems are stubbed with TODO comments
+- Triangle falling mechanics system design
+- Input handling system for keyboard controls
+- Collision detection for triangle-to-grid interactions
+- Hex physics for post-landing settling
 
 ### ⏳ Next Priorities
-1. **falling_group_physics**: Make groups fall with gravity
-2. **handle_input**: Implement rotation and movement controls
-3. **check_group_landing**: Collision detection with stack/ground
-4. **lock_individual_hexes**: Convert falling group to individual stacked hexes
+1. **spawn_falling_triangles**: Create triangular falling pieces above grid
+2. **handle_triangle_input**: Left/right movement, fast drop, position cycling
+3. **apply_triangle_gravity**: Smooth vertical falling with collision detection
+4. **settle_landed_pieces**: Convert triangles to grid pieces with hex physics
+5. **animate_settling**: Smooth movement to final resting positions
 
 ## Technical Architecture
 
 ### Key Components
 ```rust
 struct HexCoord { q: i32, r: i32 }           // Axial hex coordinates
-struct FallingGroup {                        // Group of 3 falling hexes
-    hexes: [HexColor; 3],
-    center_pos: Vec2,
-    rotation: usize,
-    fall_speed: f32,
-    horizontal_speed: f32,
+struct FallingTriangle {                     // Triangle of 3 falling hexes
+    hexes: [HexType; 3],                     // Hex types in triangle
+    grid_q: i32,                             // Horizontal grid position (snapped)
+    world_y: f32,                            // Smooth vertical world position
+    fall_speed: f32,                         // Current falling velocity
+    position_cycle: usize,                   // Current hex arrangement (0-2)
 }
-struct StackedHex { color: HexColor }        // Individual locked hex
+struct StackedHex { hex_type: HexType }      // Individual landed hex
 struct GameState {                           // Game state resource
-    stack: HashMap<HexCoord, HexColor>,
-    next_group_timer: f32,
-    game_speed: f32,
+    stack: HashMap<HexCoord, HexType>,       // Landed pieces on grid
+    falling_triangle: Option<FallingTriangle>, // Active falling triangle
+    spawn_timer: f32,                        // Time until next triangle
     score: u32,
+}
+struct SettlingHex {                         // Animating hex during physics
+    hex_type: HexType,
+    start_pos: HexCoord,
+    target_pos: HexCoord,
+    animation_timer: f32,
 }
 ```
 
 ### Update Systems (In Order)
-1. `spawn_falling_groups` ✅ - Timer-based group spawning
-2. `handle_input` ⏳ - A/D rotation, arrow keys, S slam
-3. `falling_group_physics` ⏳ - Gravity + movement
-4. `check_group_landing` ⏳ - Collision detection
-5. `lock_individual_hexes` ⏳ - Convert to individual hexes
-6. `apply_individual_gravity` - Each hex finds resting place
-7. `detect_matches` - Find 3+ connected same colors
-8. `clear_matches` - Remove matched hexes
-9. `cascade_gravity` - Fill gaps after clearing
-10. `check_game_over` - Stack height detection
+1. `spawn_falling_triangles` ⏳ - Timer-based triangle spawning above grid
+2. `handle_triangle_input` ⏳ - Keyboard input for movement/cycling/fast drop
+3. `apply_triangle_gravity` ⏳ - Smooth vertical falling with collision detection
+4. `detect_triangle_collision` ⏳ - Check when triangle hits grid/pieces
+5. `convert_triangle_to_grid` ⏳ - Place triangle hexes on grid, start settling
+6. `apply_hex_physics` ⏳ - Individual hex falling with point-top rules
+7. `animate_settling` ⏳ - Smooth movement to final positions
+8. `detect_matches` ⏳ - Find 3+ connected same hex types
+9. `clear_matches` ⏳ - Remove matched hexes
+10. `cascade_physics` ⏳ - Re-apply hex physics after clearing
+11. `check_game_over` ⏳ - Stack height detection
 
 ### Visual Design
-- **Theme**: Dark cyberpunk/neon aesthetic
-- **Assets**: White PNG images tinted in code
-- **Current**: Two-layer approach (dark body + neon border)
-- **Future**: Multiple image files for special hexes (faces, effects)
+- **Theme**: Windows 95 retro aesthetic with gray background
+- **Assets**: Three themed hex images (blank, CLI, corner)
+- **Grid**: 6×12 tessellated layout, mobile-optimized, positioned toward bottom
+- **Animation**: Smooth falling and settling movements
+- **UI**: Keyboard controls (future: on-screen buttons for mobile)
 
 ## Development Setup
 
@@ -95,10 +107,11 @@ just serve      # Start web server (in another terminal)
 
 ### Current Test
 Run the game and you should see:
-- Dark blue background
-- After 3 seconds: triangle of 3 hexes appears at top
-- Hexes have dark green bodies with bright neon borders (magenta, blue, cyan)
-- Currently stationary (physics not implemented yet)
+- Windows 95 light gray background
+- Black rectangular play area positioned toward bottom of screen
+- 6×12 grid of blank hex icons with coordinate labels
+- Perfect tessellation within the black rectangle
+- Grid ready for falling triangle implementation
 
 ## Planned Features
 
@@ -141,5 +154,5 @@ Run the game and you should see:
 
 ---
 
-**Current Status**: Foundation complete, ready to implement core falling mechanics.
-**Next Session**: Focus on `falling_group_physics` to see hexes actually fall and move.
+**Current Status**: Grid system complete, ready to implement falling triangle mechanics.
+**Next Session**: Implement triangle spawning, input handling, and basic falling physics.

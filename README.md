@@ -1,10 +1,24 @@
 # Hex Pop
 
-A hexagon-based puzzle game built with Bevy v0.16.1, designed to run in web browsers.
+A hexagon-based puzzle game built with Bevy v0.16.1, featuring Windows 95 retro aesthetics and running in web browsers.
 
-## 🎮 About
+## 🎮 Game Overview
 
-Hex Pop is a 2D puzzle game featuring hexagonal gameplay mechanics. Built with Rust and the Bevy game engine, it's optimized for web deployment with WebAssembly.
+Hex Pop combines Tetris-like falling mechanics with match-3 puzzle elements using a hexagonal grid system. Players control falling triangular groups of 3 hexes that land and settle according to simple physics rules.
+
+### 🎯 Game Mechanics
+
+- **Falling Triangles**: 3-hex triangular groups fall from above with smooth movement
+- **Hex Physics**: Individual pieces follow point-top hexagon rules - fall until supported by grid bottom or two adjacent pieces below
+- **Smart Settling**: If only one piece below, hexes slide to the unsupported side and continue falling
+- **Type Matching**: Connect 3 hexes in any direction of the same type to clear them
+- **Chain Reactions**: Clearing creates gaps, triggering physics cascades and potential chain matches
+
+### 🎮 Controls
+
+- **Left/Right Arrows**: Move triangle horizontally (snaps to grid columns)
+- **Down Arrow**: Fast drop (increased fall speed)
+- **Space Bar**: Cycle hex positions in triangle (rotation without sprite rotation)
 
 ## 🚀 Quick Start
 
@@ -36,12 +50,22 @@ Hex Pop is a 2D puzzle game featuring hexagonal gameplay mechanics. Built with R
 
 Run `just` to see all available commands:
 
-- `just dev` - One-time build and serve
-- `just watch` - Auto-rebuild on file changes (release build)
-- `just watch-debug` - Auto-rebuild with debug builds (faster compilation)
-- `just serve` - Start web server for existing build
-- `just build` - Native build for testing
-- `just build-web` - Web build only
-- `just clean` - Clean all build artifacts
-- `just test` - Run tests
-- `just check` - Quick code check without building
+### 📁 Project Structure
+
+```
+src/
+├── main.rs          # Single-file architecture with all game systems
+assets/
+├── hex-w95-blank.png    # Windows 95 themed hex assets
+├── hex-w95-cli.png
+└── hex-w95-corner.png
+```
+
+## 🎯 Technical Details
+
+- **Engine**: Bevy v0.16.1 with ECS architecture
+- **Target**: WebAssembly for browser deployment
+- **Grid**: 6×12 hexagonal tessellation using axial coordinates
+- **Controls**: Keyboard-based (future: mobile touch support)
+- **Theme**: Windows 95 retro styling with authentic color palette
+
